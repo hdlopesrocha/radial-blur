@@ -1,0 +1,99 @@
+<html>
+	<head>
+		<script src="libs/glMatrix-0.9.5.min.js"></script> 
+		<script src="libs/perlin.js"></script> 
+	    <script src="libs/jquery-3.3.1.min.js"></script>
+    	<script src="lib.js"></script>
+    	<script src="code.js"></script>
+		<link rel="stylesheet" type="text/css" href="style.css">
+	</head>
+	<script id="vertexShader" type="x-shader/x-fragment">
+		#define PI 3.1415926535897932384626433832795
+		#define BUFFER_SIZE 128
+
+		#include<libs/noise>
+
+		attribute vec2 position;
+		uniform float time;
+
+		varying vec3 vertexPosition;
+
+		void main(void) { 
+			vertexPosition = vec3(position, 0.0);
+			vec3 transform = vertexPosition*2.0-vec3(1.0, 1.0 , 0.0);
+			transform.y = -transform.y;
+			gl_Position = vec4(transform, 1.0);
+		}
+
+	</script>
+	<script id="fragmentShader" type="x-shader/x-fragment">
+		precision highp float;
+		#define BUFFER_SIZE 128
+		uniform vec3 cameraPosition;
+		uniform vec3 lightPosition;
+		uniform sampler2D sampler;
+		uniform vec2 samplerSize;
+
+		uniform float time;
+		uniform int amplitudes[BUFFER_SIZE];
+		uniform int frequencies[BUFFER_SIZE];
+
+		#include<libs/noise>
+
+		varying vec3 vertexPosition;
+
+
+		float getFrequency(float val) {
+			for(int i=0; i < BUFFER_SIZE ; ++i) {
+				if(i == int(clamp(val,0.0,127.0))) {
+					return float(frequencies[i])/255.0;
+				}
+			}
+			return 0.0;
+		}
+
+		void main(void) {
+			vec2 center = vec2(0.5);
+			vec2 position = vertexPosition.xy;
+			vec2 deltaCenter = position - center;
+
+			float dist = length(deltaCenter);
+
+			vec2 delta = normalize(deltaCenter);
+			float rad = atan(delta.y, delta.x);
+			vec2 direction = vec2(cos(rad),sin(rad));
+
+
+
+
+			float d = clamp((1.0-dist)/sqrt(2.0), 0.0, 1.0);
+			float fIndex = d*float(BUFFER_SIZE);
+			float f0 = getFrequency(fIndex );
+			float f1 = getFrequency(fIndex+1.0);
+			float dr = fIndex-floor(fIndex);
+			// smooth
+			float f = (1.0-dr)*f0 + dr*f1;
+
+
+
+
+			const int iters = 256;
+			float samplerDiagonal = length(samplerSize);
+
+			for(int i = 0; i < iters ; ++i) {
+				vec2 coord= center + (dist+f*dist*float(i)/samplerDiagonal) * direction;
+
+				mediump vec4 sample = texture2D(sampler, coord);
+
+	  			gl_FragColor += vec4(sample.rgb , 1.0);
+			}
+			gl_FragColor /= float(iters);
+		}
+	</script>
+	<body>
+		<input type="file" id="myFile"><br>
+		<canvas id="visualization" width="750" height="750" ></canvas><br>
+		<canvas id="timeDomain" width="375" height="100" ></canvas>
+		<canvas id="frequency" width="375" height="100" ></canvas>
+	</body>
+</html>
